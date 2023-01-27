@@ -54,14 +54,14 @@ class RSNN(nn.Module):# , torch.autograd.Function):
 #        self.W = nn.Parameter(torch.Tensor(output_dim, net_dim))  # output matrix
         
 #        self.B = torch.Tensor(net_dim,input_dim)  # I/O without training constraint
-#        self.W = torch.Tensor(output_dim, net_dim)
-        self.W = torch.ones(output_dim, net_dim)/output_dim #torch.eye(net_dim) #
+        self.W = torch.Tensor(output_dim, net_dim)
+#        self.W = torch.eye(net_dim) #torch.ones(output_dim, net_dim)/output_dim #
         
         # Initializing the parameters to some random values
         with torch.no_grad():  # this is to say that initialization will not be considered when computing the gradient later on
             self.B.normal_()
             self.J.normal_(std=init_std / np.sqrt(self.N))
-#            self.W.normal_(std=1. / np.sqrt(self.N))
+            self.W.normal_(std=1. / np.sqrt(self.N))
         
     def forward(self, inputs, initial_state=None):
         """
@@ -121,7 +121,7 @@ class RSNN(nn.Module):# , torch.autograd.Function):
             lamb = self.linear_map(self.synNL(vt[:,t+1]) @ self.J.T + inputs[:,t] @ self.B.T)
             zt[:,t+1] = self.spike_op(self.pre_spk(lamb))
             
-            output_seq[:,t] = lamb @ self.W.T
+            output_seq[:,t] = (lamb) @ self.W.T
         
 #        self.save_for_backward(vt)  # test with this
         
@@ -150,7 +150,7 @@ class RSNN(nn.Module):# , torch.autograd.Function):
         Synaptic nonliearity
         """
 #        nl = torch.sigmoid(x)
-        nl = torch.tanh(x)
+        nl = torch.tanh(x)*3
         return nl
     
     def spkNL(self, x):
@@ -224,13 +224,13 @@ def error_function(outputs, targets, masks):
     return torch.sum(masks * (targets - outputs)**2) / outputs.shape[0]
 
 # %% test run
-net_size = 50
+net_size = 30
 dt = .1
 tau = 1
-spk_param = 0.4, 1, 0.3  # threshold, temperature, damp
+spk_param = 0.5, 3, 0.5  # threshold, temperature, damp
 ###  input_dim, net_dim, output_dim, tau, dt, spk_param, init_std=1.
-my_net = RSNN(1, net_size, 1, tau, dt, spk_param, init_std=1.1)
-#my_net = RSNN(1, net_size, net_size, tau, dt, spk_param, init_std=.1)
+my_net = RSNN(1, net_size, 1, tau, dt, spk_param, init_std=.1)
+#my_net = RSNN(1, net_size, net_size, tau, dt, spk_param, init_std=1)
 
 # %% set simulation
 # Let us run it with some constant input for a duration T=200 steps:
@@ -249,7 +249,7 @@ print(v_seq.shape)
 print(output_seq.shape)
 
 # %% test back-prop
-n_epochs = 200
+n_epochs = 300
 lr = 1e-2
 batch_size = 32
 n_trials = inputs.shape[0]
@@ -278,14 +278,14 @@ for epoch in range(n_epochs):
 #my_net.J = weight = nn.Parameter(torch.Tensor(Jhat))
 
 # %%
-#inputs_pos, _, _, _ = generate_trials(n_trials, coherences=[+1], T=T)
-#inputs_neg, _, _, _ = generate_trials(n_trials, coherences=[-1], T=T)
+inputs_pos, _, _, _ = generate_trials(n_trials, coherences=[+1], T=T)
+inputs_neg, _, _, _ = generate_trials(n_trials, coherences=[-1], T=T)
 
 #inputs_pos, _, _, _ = generate_trials2(n_trials, coherences=[.0], T=T)
 #inputs_neg, _, _, _ = generate_trials2(n_trials, coherences=[1.], T=T)
 
-inputs_pos, _, _, _ = generate_activity(n_trials, coherences=[+1], T=T)
-inputs_neg, _, _, _ = generate_activity(n_trials, coherences=[-1], T=T)
+#inputs_pos, _, _, _ = generate_activity(n_trials, coherences=[+1], T=T)
+#inputs_neg, _, _, _ = generate_activity(n_trials, coherences=[-1], T=T)
 
 # run network
 v_pos, z_pos, output_pos = my_net.forward(inputs_pos*1)
@@ -360,7 +360,9 @@ def spiking(x):
     return spk
 
 def NL(x):
-    nl = torch.sigmoid(x)
+#    nl = torch.sigmoid(x)
+    m = nn.ReLU()
+    nl = m(x)
     return nl
 
 def Asyn_Irreg(N, lt, freq):
@@ -369,19 +371,25 @@ def Asyn_Irreg(N, lt, freq):
     """
     time = torch.arange(0,lt,1)
     latent = 1*torch.sin(time*freq*0.1)
-#    M = torch.ones(N)
-#    b = 0
-#    spk = spiking(NL(M[:,None]*latent-b))
-    m = nn.ReLU()
-    return m(latent)[:,None]#spk.T
+    M = torch.ones(N)
+    b = 0
+    spk = (NL(M[:,None]*latent-b))
+#    m = nn.ReLU()
+    spk = torch.zeros(N,lt)
+    rt = spk*1
+    for tt in range(lt-1):
+     spk[:,tt] = spiking(NL(M*latent[tt]-b))
+#     spk[:,tt] = spiking(NL(J @ phi(rt[:,tt]) + 0)*dt)  # matched model control
+     rt[:,tt+1] = rt[:,tt] + dt/tau*(-rt[:,tt] + spk[:,tt])
+    return rt.T # m(latent)[:,None]#
     
-def generate_activity(n_trials, coherences=[-1., 1.], T=T):
+def generate_activity(n_trials, coherences=[-1., 1.], T=T, std=0.2):
     """
     Generate target population activity
     """
-    inputs = torch.zeros((n_trials, T, 1))
-#    targets = torch.ones((n_trials, T, net_size))
-    targets = torch.ones((n_trials, T, 1))
+    inputs = std * torch.randn((n_trials, T, 1)) #torch.zeros((n_trials, T, 1))
+    targets = torch.ones((n_trials, T, net_size))
+#    targets = torch.ones((n_trials, T, 1))
     mask = torch.ones((n_trials, T, 1))
     coh_trials = []
 #    mask[:, T-1] = 1  # set mask to one only at the end
@@ -390,16 +398,16 @@ def generate_activity(n_trials, coherences=[-1., 1.], T=T):
         coh = random.choice(coherences)
         inputs[i] += coh
         if coh > np.random.rand():
-            targets[i] = Asyn_Irreg(net_size, T, 2)#torch.rand(T,net_size)
+            targets[i] = Asyn_Irreg(net_size, T, 1)#torch.rand(T,net_size)
         else:
-            targets[i] = Asyn_Irreg(net_size, T, 1)
+            targets[i] = Asyn_Irreg(net_size, T, 2)
         coh_trials.append(coh)
         
     return inputs, targets, mask, coh_trials
 
-#inputs, targets, masks, coh_trials = generate_trials(100,T=T)
+inputs, targets, masks, coh_trials = generate_trials(100,T=T)
 #inputs, targets, masks, coh_trials = generate_trials2(100,T=T)
-inputs, targets, masks, coh_trials = generate_activity(100,T=T)
+#inputs, targets, masks, coh_trials = generate_activity(100,T=T)
 
 ### ideas ###
 # trained network rank:
