@@ -54,14 +54,14 @@ class RSNN(nn.Module):# , torch.autograd.Function):
 #        self.W = nn.Parameter(torch.Tensor(output_dim, net_dim))  # output matrix
         
 #        self.B = torch.Tensor(net_dim,input_dim)  # I/O without training constraint
-        self.W = torch.Tensor(output_dim, net_dim)
-#        self.W = torch.eye(net_dim) #torch.ones(output_dim, net_dim)/output_dim #
+#        self.W = torch.Tensor(output_dim, net_dim)
+        self.W = torch.eye(net_dim) #torch.ones(output_dim, net_dim)/output_dim #
         
         # Initializing the parameters to some random values
         with torch.no_grad():  # this is to say that initialization will not be considered when computing the gradient later on
             self.B.normal_()
             self.J.normal_(std=init_std / np.sqrt(self.N))
-            self.W.normal_(std=1. / np.sqrt(self.N))
+#            self.W.normal_(std=1. / np.sqrt(self.N))
         
     def forward(self, inputs, initial_state=None):
         """
@@ -224,13 +224,13 @@ def error_function(outputs, targets, masks):
     return torch.sum(masks * (targets - outputs)**2) / outputs.shape[0]
 
 # %% test run
-net_size = 30
+net_size = 60
 dt = .1
 tau = 1
-spk_param = 0.5, 3, 0.5  # threshold, temperature, damp
+spk_param = 0.4, 6, 0.5  # threshold, temperature, damp
 ###  input_dim, net_dim, output_dim, tau, dt, spk_param, init_std=1.
-my_net = RSNN(1, net_size, 1, tau, dt, spk_param, init_std=.1)
-#my_net = RSNN(1, net_size, net_size, tau, dt, spk_param, init_std=1)
+#my_net = RSNN(1, net_size, 1, tau, dt, spk_param, init_std=.1)
+my_net = RSNN(1, net_size, net_size, tau, dt, spk_param, init_std=1)
 
 # %% set simulation
 # Let us run it with some constant input for a duration T=200 steps:
@@ -278,14 +278,14 @@ for epoch in range(n_epochs):
 #my_net.J = weight = nn.Parameter(torch.Tensor(Jhat))
 
 # %%
-inputs_pos, _, _, _ = generate_trials(n_trials, coherences=[+1], T=T)
-inputs_neg, _, _, _ = generate_trials(n_trials, coherences=[-1], T=T)
+#inputs_pos, _, _, _ = generate_trials(n_trials, coherences=[+1], T=T)
+#inputs_neg, _, _, _ = generate_trials(n_trials, coherences=[-1], T=T)
 
 #inputs_pos, _, _, _ = generate_trials2(n_trials, coherences=[.0], T=T)
 #inputs_neg, _, _, _ = generate_trials2(n_trials, coherences=[1.], T=T)
 
-#inputs_pos, _, _, _ = generate_activity(n_trials, coherences=[+1], T=T)
-#inputs_neg, _, _, _ = generate_activity(n_trials, coherences=[-1], T=T)
+inputs_pos, _, _, _ = generate_activity(n_trials, coherences=[+1], T=T)
+inputs_neg, _, _, _ = generate_activity(n_trials, coherences=[-1], T=T)
 
 # run network
 v_pos, z_pos, output_pos = my_net.forward(inputs_pos*1)
@@ -390,24 +390,26 @@ def generate_activity(n_trials, coherences=[-1., 1.], T=T, std=0.2):
     inputs = std * torch.randn((n_trials, T, 1)) #torch.zeros((n_trials, T, 1))
     targets = torch.ones((n_trials, T, net_size))
 #    targets = torch.ones((n_trials, T, 1))
-    mask = torch.ones((n_trials, T, 1))
+#    mask = torch.ones((n_trials, T, 1))
+    mask = torch.ones((n_trials, T, net_size))
+    mask[:,:,int(np.floor(net_size*2/3)):] = torch.zeros((n_trials, T, int(np.floor(net_size*1/3))))
     coh_trials = []
 #    mask[:, T-1] = 1  # set mask to one only at the end
     
     for i in range(n_trials):
         coh = random.choice(coherences)
-        inputs[i] += coh
+        inputs[i] += 0#coh
         if coh > np.random.rand():
             targets[i] = Asyn_Irreg(net_size, T, 1)#torch.rand(T,net_size)
         else:
-            targets[i] = Asyn_Irreg(net_size, T, 2)
+            targets[i] = Asyn_Irreg(net_size, T, 1)
         coh_trials.append(coh)
         
     return inputs, targets, mask, coh_trials
 
-inputs, targets, masks, coh_trials = generate_trials(100,T=T)
+#inputs, targets, masks, coh_trials = generate_trials(100,T=T)
 #inputs, targets, masks, coh_trials = generate_trials2(100,T=T)
-#inputs, targets, masks, coh_trials = generate_activity(100,T=T)
+inputs, targets, masks, coh_trials = generate_activity(100,T=T)
 
 ### ideas ###
 # trained network rank:
