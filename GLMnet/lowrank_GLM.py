@@ -69,7 +69,7 @@ def generative_GLM(w_map, bt, dt):
     return spk, st, rt
 
 # %%
-N = 100
+N = 10
 T = 250
 dt = .1
 time = np.arange(0,T,dt)
@@ -289,8 +289,8 @@ for ll in range(len(lrec)):
     
 # %%
 plt.figure()
-plt.semilogy(lrec,mls,'k',alpha=0.5,linewidth=15)
-plt.semilogy(lrec,lrs,'b-o',alpha=0.5,linewidth=8)
+plt.plot(lrec,mls,'k',alpha=0.5,linewidth=15)
+plt.plot(lrec,lrs,'b-o',alpha=0.5,linewidth=8)
 plt.xlabel('data length',fontsize=50)
 plt.ylabel('MSE',fontsize=50)
 plt.title('dot:low-rank ;line:MLE',fontsize=40)
