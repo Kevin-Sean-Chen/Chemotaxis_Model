@@ -31,7 +31,7 @@ dt = 0.1
 time = np.arange(0,T,dt)
 lt = len(time)
 sig = .5
-tau_l = 10
+tau_l = 2
 
 # %% latent dynamics
 # potential: V(x) = 1/4*x**4 - x**2 - c*x
@@ -154,6 +154,10 @@ res = sp.optimize.minimize(lambda w: negLL_lr(w, spk,rt,latent,dt,NL, 0.),w_init
 w_lr = res.x
 print(res.fun)
 print(res.success)
+
+###
+# this would not work... needs to be included iteratively
+###
 
 # %% unwrap W matrix full-map
 brec = w_map[:N]

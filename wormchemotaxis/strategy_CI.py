@@ -29,8 +29,9 @@ def environment(xx,yy,M=50):
 #    M = 20   #max concentration
     sig2 = 20  #width of Gaussian
     target = np.array([30,30])   #target position
-    NaCl = M*np.exp(-((xx-target[0])**2+(yy-target[1])**2)/2/sig2**2)
-    return NaCl+np.random.randn()*0.
+    NaCl = M*np.exp(-((xx-target[0])**2+(yy-target[1])**2)/2/sig2**2) ### Gaussian bump
+#    NaCl = max(0,M*((xx-target[0])**2+(yy-target[1])**2)**0.5) ### linear sharp distance
+    return NaCl+np.random.randn()*0.1
 
 def steering(vv,alpha_s,dcp,K):
     """
@@ -88,8 +89,12 @@ def sigmoid(x,w,t):
 # %% 
 #with behavior
 dt = 0.1
-T = 1000
+T = 300
 lt = int(T/dt)
+alpha = 4
+beta = 1.5
+gamma = .2
+Ft,St = np.zeros(lt),np.zeros(lt) #fast and slow part of AWC
 tau = 1
 target = np.array([30,30])
 Vs = np.zeros((2,lt))
@@ -100,15 +105,19 @@ XY = np.random.randn(2,lt)
 proj = np.array([.5,.2])*1
 lamb0 = 0.05
 gamma0 = 0.5
-alpha_p, alpha_s, alpha_g = -.1, -.005, 0.00
+alpha_p, alpha_s, alpha_g = -.1, -.0, 0.0001
 dxy = np.random.randn(2)
 vv,vs = 0.55,0.05
-K = np.pi/12
-J = np.array([[.1,-5.],[-5,.1]])*3
-env_noise = 5
+K = np.pi/20 #12
+J = np.array([[.1,-5.],[-5,.1]])*0
+env_noise = 1
 for tt in range(lt-1):
+    ### sensor dynamics
+    Ft[tt+1] = Ft[tt] + dt*(alpha*Cs[tt] - beta*Ft[tt])  # fast dynamics
+    St[tt+1] = St[tt] + dt*gamma*(Ft[tt] - St[tt])  # slow dynamics
+    Is = Ft[tt] - St[tt]
     ###neural dynamics
-    Vs[:,tt+1] = Vs[:,tt] + dt/tau*( -Vs[:,tt] + proj*Cs[tt] + J @ sigmoid(Vs[:,tt],1,0) ) \
+    Vs[:,tt+1] = Vs[:,tt] + dt/tau*( -Vs[:,tt] + proj*Is + J @ sigmoid(Vs[:,tt],1,0) ) \
     + np.random.randn(2)*np.sqrt(dt)*1
     ###behavior
     lambda_p = Pirouette(Vs[0,tt+1],alpha_p,lamb0)  #Pirouette #Cs[tt]
@@ -123,7 +132,7 @@ for tt in range(lt-1):
     #dxy = np.squeeze(np.array([np.cos(dth), np.sin(dth)]))
     dxy = ang2dis(XY[0,tt],XY[1,tt],ths[tt+1])
     XY[:,tt+1] = XY[:,tt] + dxy*dt
-    Cs[tt+1] = environment(XY[0,tt+1],XY[1,tt+1]) + np.random.randn()*env_noise
+    Cs[tt+1] = environment(XY[0,tt+1],XY[1,tt+1],50) + np.random.randn()*env_noise
     prt[tt+1] = dth
     
 # %%
@@ -133,6 +142,7 @@ plt.figure()
 y, x = np.meshgrid(np.linspace(-10, 50, 60), np.linspace(-10, 50, 60))
 plt.imshow(environment(x,y),origin='lower',extent = [-10,50,-10,50])
 plt.plot(XY[0,:],XY[1,:],'blue')
+plt.scatter(XY[0,0],XY[1,0], color='green', marker='o');plt.scatter(XY[0,-1],XY[1,-1], color='red', marker='o')
 plt.figure()
 plt.plot(Vs.T)
 
@@ -140,13 +150,13 @@ plt.plot(Vs.T)
 ###############################################################################
 # %% Effective model
 ###############################################################################
-envs = np.array([20,40,60,80])  # slope of the chemical gradient
+envs = np.array([1, 10, 20, 40, 60])  # slope of the chemical gradient
 params = np.array([[-.1, -.00, 0.0001],
-                   [-.0, -.005, 0.0001],
-                   [-.1, -.005, 0.0001],
-                   [-.1, -.005, 0.0001]]) #BRW, WV, both, and switching...
-repeats = 50  # number of trials for statistics
-eps = 5 # distance from the point source
+                   [-.0, -.02, 0.0001],
+                   [-.1, -.02, 0.0001],
+                   [-.1, -.02, 0.0001]]) #BRW, WV, both, and switching...
+repeats = 70  # number of trials for statistics  #50
+eps = 10 # distance from the point source
 CIs = np.zeros((len(envs), params.shape[0]))  # environments by parameters
 
 for ee in range(len(envs)):  #environment loop
@@ -156,6 +166,7 @@ for ee in range(len(envs)):  #environment loop
         
         ### run chemotaxis trials
         for rr in range(repeats):
+            Ft,St = 0,0
             Vs = np.zeros(2)
             Cs = np.random.randn() #np.zeros(lt)
             ths = 0#np.zeros(lt)
@@ -168,8 +179,12 @@ for ee in range(len(envs)):  #environment loop
             
             ### chemotaxis dynamics
             for tt in range(lt-1):
+                ### sensor dynamics
+                Ft = Ft + dt*(alpha*Cs - beta*Ft)  # fast dynamics
+                St = St + dt*gamma*(Ft - St)  # slow dynamics
+                Is = Ft - St
                 ###neural dynamics
-                Vs = Vs + dt/tau*( -Vs + proj*Cs + J @ sigmoid(Vs,1,0) ) \
+                Vs = Vs + dt/tau*( -Vs + proj*Is + J @ sigmoid(Vs,1,0) ) \
                 + np.random.randn(2)*np.sqrt(dt)*1
                 ###behavior
                 lambda_p = Pirouette(Vs[0],alpha_p,lamb0)  #Pirouette #Cs[tt]
@@ -194,7 +209,7 @@ for ee in range(len(envs)):  #environment loop
         
 # %%
 plt.figure()
-plt.plot(envs,CIs.T,'-o')
+plt.plot(envs[:],CIs[:,:],'-o')
 plt.xlabel('gradient')
 plt.ylabel('CI')
 lab = np.array(["BRW","WV","BRW+WV","HMM"])
