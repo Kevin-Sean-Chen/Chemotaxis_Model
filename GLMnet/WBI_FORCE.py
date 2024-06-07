@@ -60,7 +60,7 @@ R2 = r2_.reshape(R2.shape[0],R2.shape[1])
 #targ_dim = nn
 
 ### behavioral decoding (var x T)
-neuraldynamics = np.arctanh(R2/5)#R2.copy()  #Beh.copy()#
+neuraldynamics =Beh.copy()# np.arctanh(R2/5)#R2.copy()  #Beh.copy()#
 nn, timelen = neuraldynamics.shape  
 nn = R2.shape[0]*1
 targ_dim = neuraldynamics.shape[0]
@@ -98,13 +98,13 @@ wf = 2.0*(np.random.rand(nRec2Out,targ_dim)-0.5)*.2
 
 ###target pattern
 smooth = 200
-simtime = np.linspace(0,100,simtime_len)
+#simtime = np.linspace(0,100,simtime_len)
 ft = neuraldynamics*1#/np.max(neuraldynamics)*1.7 - 0.5
-ft = ft - np.mean(ft,axis=0)
+ft = ft - np.mean(ft)#,axis=0)
 kern = np.hanning(smooth)   # a Hanning window with width 50
 kern /= kern.sum()      # normalize the kernel weights to sum to 1
 ft = ndimage.convolve1d(ft, kern, 1)*3
-#ft = ft/np.max(np.abs(ft),1)[:,None]*1.5
+ft = ft/np.max(np.abs(ft),1)[:,None]*1.5
 
 #test = np.sin(np.arange(0,simtime_len)/50)
 #ft = np.repeat(test[None,:], targ_dim,axis=0)

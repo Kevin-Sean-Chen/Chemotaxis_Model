@@ -103,13 +103,13 @@ ths = np.zeros(lt)
 prt = np.zeros(lt)
 XY = np.random.randn(2,lt)
 proj = np.array([.5,.2])*1
-lamb0 = 0.05
+lamb0 = 0.01  #0.05
 gamma0 = 0.5
-alpha_p, alpha_s, alpha_g = -.1, -.0, 0.0001
+alpha_p, alpha_s, alpha_g = -.1, -.02, 0.0001
 dxy = np.random.randn(2)
 vv,vs = 0.55,0.05
 K = np.pi/20 #12
-J = np.array([[.1,-5.],[-5,.1]])*0
+J = np.array([[.1,-5.],[-5,.1]])*1
 env_noise = 1
 for tt in range(lt-1):
     ### sensor dynamics
@@ -135,7 +135,7 @@ for tt in range(lt-1):
     Cs[tt+1] = environment(XY[0,tt+1],XY[1,tt+1],50) + np.random.randn()*env_noise
     prt[tt+1] = dth
     
-# %%
+# 
 plt.figure()
 plt.plot(Cs)
 plt.figure()
@@ -150,13 +150,15 @@ plt.plot(Vs.T)
 ###############################################################################
 # %% Effective model
 ###############################################################################
-envs = np.array([1, 10, 20, 40, 60])  # slope of the chemical gradient
+envs = np.array([20, 40, 60, 80])  # slope of the chemical gradient
 params = np.array([[-.1, -.00, 0.0001],
                    [-.0, -.02, 0.0001],
                    [-.1, -.02, 0.0001],
                    [-.1, -.02, 0.0001]]) #BRW, WV, both, and switching...
-repeats = 70  # number of trials for statistics  #50
-eps = 10 # distance from the point source
+#params = np.array([[-.1, -.02, 0.0001],
+#                   [-.1, -.02, 0.0001]]) #BRW, WV, both, and switching...
+repeats = 50  # number of trials for statistics  #50
+eps = 5 # distance from the point source
 CIs = np.zeros((len(envs), params.shape[0]))  # environments by parameters
 
 for ee in range(len(envs)):  #environment loop
@@ -172,8 +174,8 @@ for ee in range(len(envs)):  #environment loop
             ths = 0#np.zeros(lt)
             XY = np.random.randn(2)#,lt)
             dxy = np.random.randn(2)
-            if pp==4:
-                J = np.array([[.1,-5.],[-5,.1]])*3  #add interactions
+            if pp==3:
+                J = np.array([[.1,-5.],[-5,.1]])*2  #add interactions
             else:
                 J = np.array([[.1,-5.],[-5,.1]])*0
             
